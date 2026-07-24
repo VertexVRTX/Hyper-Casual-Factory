@@ -24,6 +24,7 @@ public class ConveyorSpawner : MonoBehaviour
 
     [Header("Anti-Overlap Settings")]
     public float minBoxDistance = 1.2f;
+    private float _minBoxDistanceSqr;
 
     [Header("Bonus Box Settings")]
     [Range(0f, 1f)] public float bonusSpawnChance = 0.15f;
@@ -48,6 +49,8 @@ public class ConveyorSpawner : MonoBehaviour
         _pool = new ObjectPool<Box>(boxPrefab, boxesParent, prewarm: 6);
         currentTravelSpeed = baseTravelSpeed;
         currentSpawnInterval = baseSpawnInterval;
+
+        _minBoxDistanceSqr = minBoxDistance * minBoxDistance;
     }
 
     public void StartSpawning()
@@ -79,7 +82,15 @@ public class ConveyorSpawner : MonoBehaviour
             float waitTime = currentSpawnInterval + _nextSpawnDelayBonus;
             _nextSpawnDelayBonus = 0f;
 
-            yield return new WaitForSeconds(waitTime);
+            float timer = 0f;
+            while (timer < waitTime)
+            {
+                if (!IsFrozenByAbility)
+                {
+                    timer += Time.deltaTime;
+                }
+                yield return null;
+            }
         }
     }
 
@@ -129,8 +140,9 @@ public class ConveyorSpawner : MonoBehaviour
     private int GetComplexBoxesCount()
     {
         int count = 0;
-        foreach (var b in _activeBoxes)
+        for (int i = 0; i < _activeBoxes.Count; i++)
         {
+            Box b = _activeBoxes[i];
             if (b != null && b.mechanicState != BoxMechanicState.Normal)
             {
                 count++;
@@ -148,15 +160,15 @@ public class ConveyorSpawner : MonoBehaviour
 
     private void MoveBoxes()
     {
-        float effectiveSpeed = currentTravelSpeed;
+        float baseSpeed = currentTravelSpeed;
 
         if (_freezeAbilityTimer > 0f)
         {
-            effectiveSpeed = 0f;
+            baseSpeed = 0f;
         }
         else if (_slowdownTimer > 0f)
         {
-            effectiveSpeed *= 0.4f;
+            baseSpeed *= 0.4f;
         }
 
         float dt = Time.deltaTime;
@@ -164,42 +176,67 @@ public class ConveyorSpawner : MonoBehaviour
         for (int i = _activeBoxes.Count - 1; i >= 0; i--)
         {
             Box box = _activeBoxes[i];
-
             if (box == null || box.IsHandled)
             {
                 _activeBoxes.RemoveAt(i);
-                continue;
             }
+        }
+
+        if (_activeBoxes.Count == 0 || baseSpeed < 0.01f) return;
+
+        Vector3 endPos = endPoint.position;
+        _activeBoxes.Sort((a, b) =>
+        {
+            if (a == null || b == null) return 0;
+            float distA = Vector3.SqrMagnitude(a.transform.position - endPos);
+            float distB = Vector3.SqrMagnitude(b.transform.position - endPos);
+            return distA.CompareTo(distB);
+        });
+
+        float brakeDistanceSqr = minBoxDistance * minBoxDistance;
+        float minimumSpeedDistance = minBoxDistance * 0.7f;
+
+        float speedMultiplier = 1f;
+        float minSpeedMultiplier = 0.05f;
+
+        for (int i = 0; i < _activeBoxes.Count; i++)
+        {
+            Box box = _activeBoxes[i];
 
             if (box.IsDragging) continue;
 
-            float boxSpeedFactor = 1f;
-
-            Box boxAhead = GetBoxAheadInList(i);
+            Box boxAhead = GetBoxAhead(i);
 
             if (boxAhead != null)
             {
                 float distSqr = (box.transform.position - boxAhead.transform.position).sqrMagnitude;
-                float minDistSqr = minBoxDistance * minBoxDistance;
 
-                if (distSqr < minDistSqr)
+                if (distSqr < brakeDistanceSqr)
                 {
-                    float distanceToAhead = Mathf.Sqrt(distSqr);
-                    boxSpeedFactor = Mathf.Clamp01((distanceToAhead - (minBoxDistance * 0.5f)) / (minBoxDistance * 0.5f));
+                    float distance = Mathf.Sqrt(distSqr);
+
+                    speedMultiplier = Mathf.Lerp(minSpeedMultiplier, 1f,
+                        (distance - minimumSpeedDistance) / (minBoxDistance - minimumSpeedDistance));
+                    speedMultiplier = Mathf.Clamp(speedMultiplier, minSpeedMultiplier, 1f);
+                }
+                else
+                {
+                    speedMultiplier = 1f;
                 }
             }
-
-            if (boxSpeedFactor > 0.01f)
+            else
             {
-                box.transform.position = Vector3.MoveTowards(
-                    box.transform.position,
-                    endPoint.position,
-                    effectiveSpeed * boxSpeedFactor * dt);
+                speedMultiplier = 1f;
             }
+
+            box.transform.position = Vector3.MoveTowards(
+                box.transform.position,
+                endPos,
+                baseSpeed * speedMultiplier * dt);
         }
     }
 
-    private Box GetBoxAheadInList(int currentIndex)
+    private Box GetBoxAhead(int currentIndex)
     {
         for (int i = currentIndex - 1; i >= 0; i--)
         {
@@ -229,15 +266,8 @@ public class ConveyorSpawner : MonoBehaviour
         currentSpawnInterval = Mathf.Lerp(baseSpawnInterval, minSpawnInterval, difficultyFactor);
     }
 
-    public void ApplyMicroSlowdown(float duration)
-    {
-        _slowdownTimer = Mathf.Max(_slowdownTimer, duration);
-    }
-
-    public void ActivateFreezeAbility(float duration = 4f)
-    {
-        _freezeAbilityTimer = duration;
-    }
+    public void ApplyMicroSlowdown(float duration) => _slowdownTimer = Mathf.Max(_slowdownTimer, duration);
+    public void ActivateFreezeAbility(float duration = 4f) => _freezeAbilityTimer = duration;
 
     public void ReturnToConveyor(Box box)
     {
