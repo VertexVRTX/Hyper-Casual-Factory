@@ -17,6 +17,11 @@ public class InputManager : MonoBehaviour
 
     private void Update()
     {
+        if (_currentBox != null && _currentBox.IsHandled)
+        {
+            _currentBox = null;
+        }
+
         if (Input.GetMouseButtonDown(0) || TouchBegan())
         {
             TryInteractOrStartDrag(GetPointerScreenPos());
@@ -57,10 +62,13 @@ public class InputManager : MonoBehaviour
 
     private void TryInteractOrStartDrag(Vector3 screenPos)
     {
+        if (_currentBox != null && _currentBox.IsDragging) return;
+
         Ray ray = cam.ScreenPointToRay(screenPos);
         if (Physics.Raycast(ray, out RaycastHit hit, 100f, boxLayer))
         {
             Box box = hit.collider.GetComponent<Box>();
+
             if (box != null && !box.IsHandled)
             {
                 _currentBox = box;
@@ -82,19 +90,32 @@ public class InputManager : MonoBehaviour
 
     private void DragCurrentBox(Vector3 screenPos)
     {
+        if (_currentBox == null || _currentBox.IsHandled) return;
+
         Ray ray = cam.ScreenPointToRay(screenPos);
-        Plane plane = new Plane(Vector3.up, new Vector3(0, _dragPlaneY, 0));
+
+        float conveyorHeight = GameManager.Instance.Conveyor.spawnPoint.position.y;
+        Plane plane = new Plane(Vector3.up, new Vector3(0, conveyorHeight, 0));
+
         if (plane.Raycast(ray, out float dist))
         {
-            _currentBox.DragTo(ray.GetPoint(dist));
+            Vector3 targetPoint = ray.GetPoint(dist);
+            targetPoint.y = Mathf.Max(targetPoint.y, conveyorHeight);
+
+            _currentBox.DragTo(targetPoint);
         }
     }
 
     private void EndDrag()
     {
-        _currentBox.EndDrag();
+        if (_currentBox == null) return;
 
-        int hitCount = Physics.OverlapSphereNonAlloc(_currentBox.transform.position, 1.0f, _overlapBuffer);
+        Box boxToProcess = _currentBox;
+        _currentBox = null;
+
+        boxToProcess.EndDrag();
+
+        int hitCount = Physics.OverlapSphereNonAlloc(boxToProcess.transform.position, 1.0f, _overlapBuffer);
         Container container = null;
 
         for (int i = 0; i < hitCount; i++)
@@ -105,20 +126,18 @@ public class InputManager : MonoBehaviour
 
         if (container != null)
         {
-            container.TryAccept(_currentBox);
+            container.TryAccept(boxToProcess);
         }
         else
         {
-            _currentBox.PlayThrowUpTween(() =>
+            boxToProcess.PlayThrowUpTween(() =>
             {
-                GameManager.Instance.Conveyor.ReleaseBox(_currentBox);
+                GameManager.Instance.Conveyor.ReleaseBox(boxToProcess);
             });
 
             if (ScreenFlashEffect.Instance != null) ScreenFlashEffect.Instance.TriggerFlash();
             GameManager.Instance.OnWrongSort();
         }
-
-        _currentBox = null;
     }
 
     private bool TouchBegan() => Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began;

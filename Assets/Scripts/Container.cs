@@ -15,19 +15,12 @@ public class Container : MonoBehaviour
     public ParticleSystem wrongParticlePrefab;
     public Transform particleSpawnPoint;
 
-    [Header("Audio")]
-    public AudioClip wrongSound;
-    private AudioSource _audioSource;
-
     private Vector3 _initialScale;
     private ParticleSystem _spawnedWrongParticle;
 
     private void Awake()
     {
         _initialScale = transform.localScale;
-        _audioSource = GetComponent<AudioSource>();
-        if (_audioSource == null)
-            _audioSource = gameObject.AddComponent<AudioSource>();
 
         if (wrongParticlePrefab != null)
         {
@@ -49,7 +42,10 @@ public class Container : MonoBehaviour
             if (box.Type == BoxType.BonusTime)
             {
                 GameManager.Instance.Timer.AddExtraTime(box.bonusTimeAmount);
-                FloatingTextSpawner.Instance.SpawnText(transform.position, box.bonusScoreAmount, true);
+
+                FloatingTextSpawner.Instance.SpawnText(transform.position, box.bonusTimeAmount, isBonus: true, isTimeBonus: true);
+
+                AudioManager.Instance?.PlaySFX(AudioManager.Instance.bonusTimeSound);
             }
             else if (box.Type == BoxType.BonusScore)
             {
@@ -57,7 +53,10 @@ public class Container : MonoBehaviour
                 finalPoints = box.bonusScoreAmount * multiplier;
 
                 GameManager.Instance.OnCorrectSort(box.bonusScoreAmount);
-                FloatingTextSpawner.Instance.SpawnText(transform.position, finalPoints, true);
+
+                FloatingTextSpawner.Instance.SpawnText(transform.position, finalPoints, isBonus: true, isTimeBonus: false);
+
+                AudioManager.Instance?.PlaySFX(AudioManager.Instance.bonusScoreSound);
             }
 
             AnimateCorrectContainer();
@@ -79,6 +78,8 @@ public class Container : MonoBehaviour
 
             AnimateCorrectContainer();
 
+            AudioManager.Instance?.PlaySFX(AudioManager.Instance.correctSortSound);
+
             box.PlayCorrectTween(dropPoint.position, () =>
             {
                 GameManager.Instance.Conveyor.ReleaseBox(box);
@@ -96,7 +97,7 @@ public class Container : MonoBehaviour
                 CameraShaker.Instance.ShakeOnWrong();
             }
 
-            if (wrongSound != null) _audioSource.PlayOneShot(wrongSound);
+            AudioManager.Instance?.PlaySFX(AudioManager.Instance.wrongSortSound);
 
             box.PlayThrowUpTween(() =>
             {
@@ -112,7 +113,6 @@ public class Container : MonoBehaviour
         if (_spawnedWrongParticle != null)
         {
             _spawnedWrongParticle.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-
             _spawnedWrongParticle.Play();
         }
     }

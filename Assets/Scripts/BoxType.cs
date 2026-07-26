@@ -6,6 +6,7 @@ using DG.Tweening;
 public enum BoxType { Red, Blue, Green, Yellow, BonusScore, BonusTime }
 public enum BoxMechanicState { Normal, Sealed, Frozen, Glass }
 
+[RequireComponent(typeof(Rigidbody))]
 public class Box : MonoBehaviour
 {
     public BoxType Type;
@@ -25,7 +26,7 @@ public class Box : MonoBehaviour
     [Header("Mechanics Setup")]
     public BoxMechanicState mechanicState = BoxMechanicState.Normal;
 
-    [Header("Visual Overlays (Drag & Drop Child GameObjects)")]
+    [Header("Visual Overlays")]
     public GameObject tapeVisual;
     public GameObject iceVisual;
     public GameObject glassVisual;
@@ -33,6 +34,7 @@ public class Box : MonoBehaviour
     [Header("Glass Box Settings")]
     public float maxAllowedSpeed = 15f;
     private Vector3 _lastFramePosition;
+    private bool _isFirstDragFrame;
 
     private float _freezeHoldTimer = 0f;
     private const float UNFREEZE_DURATION = 0.5f;
@@ -40,9 +42,13 @@ public class Box : MonoBehaviour
     private Vector3 _dragOffset;
     private Camera _cam;
 
+    private Rigidbody _rb;
+    private float _lockedDragY;
+
     private void Awake()
     {
         if (boxCollider == null) boxCollider = GetComponent<Collider>();
+        _rb = GetComponent<Rigidbody>();
     }
 
     public void Init(BoxType type, Material mat)
@@ -68,11 +74,15 @@ public class Box : MonoBehaviour
 
     public bool CanBeDragged()
     {
+        if (IsHandled) return false;
+
         return mechanicState == BoxMechanicState.Normal || mechanicState == BoxMechanicState.Glass;
     }
 
     public void InteractClick()
     {
+        if (IsHandled) return;
+
         if (mechanicState == BoxMechanicState.Sealed)
         {
             mechanicState = BoxMechanicState.Normal;
@@ -85,11 +95,14 @@ public class Box : MonoBehaviour
 
             transform.DOKill();
             transform.DOPunchScale(Vector3.one * 0.2f, 0.15f);
+            AudioManager.Instance?.PlaySFX(AudioManager.Instance.tapeUnwrapSound);
         }
     }
 
     public void InteractHold(float deltaTime)
     {
+        if (IsHandled) return;
+
         if (mechanicState == BoxMechanicState.Frozen)
         {
             if (GameManager.Instance != null && GameManager.Instance.Conveyor != null)
@@ -104,18 +117,37 @@ public class Box : MonoBehaviour
                 mechanicState = BoxMechanicState.Normal;
                 if (iceVisual != null) iceVisual.SetActive(false);
 
+                if (_rb != null)
+                {
+                    _rb.velocity = Vector3.zero;
+                    _rb.angularVelocity = Vector3.zero;
+                }
+
                 transform.DOKill();
                 transform.DOPunchScale(Vector3.one * 0.25f, 0.2f);
+                AudioManager.Instance?.PlaySFX(AudioManager.Instance.iceMeltSound);
             }
         }
     }
 
     public void StartDrag(Camera cam, Vector3 hitWorldPoint)
     {
+        if (IsHandled) return;
+
         _cam = cam;
         IsDragging = true;
         _dragOffset = transform.position - hitWorldPoint;
+
         _lastFramePosition = transform.position;
+        _isFirstDragFrame = true;
+
+        _lockedDragY = transform.position.y;
+
+        if (_rb != null)
+        {
+            _rb.velocity = Vector3.zero;
+            _rb.constraints = RigidbodyConstraints.FreezeRotation;
+        }
 
         transform.DOKill();
         transform.DOScale(1.15f, 0.15f);
@@ -123,21 +155,39 @@ public class Box : MonoBehaviour
 
     public void DragTo(Vector3 worldPoint)
     {
+        if (IsHandled) return;
+
         Vector3 targetPosition = worldPoint + _dragOffset;
+        targetPosition.y = Mathf.Max(targetPosition.y, _lockedDragY);
 
         if (mechanicState == BoxMechanicState.Glass)
         {
-            float currentSpeed = (targetPosition - _lastFramePosition).magnitude / Time.deltaTime;
-
-            if (currentSpeed > maxAllowedSpeed)
+            if (!_isFirstDragFrame)
             {
-                BreakGlassBox();
-                return;
+                float currentSpeed = (targetPosition - _lastFramePosition).magnitude / Time.deltaTime;
+
+                if (currentSpeed > maxAllowedSpeed)
+                {
+                    BreakGlassBox();
+                    return;
+                }
+            }
+            else
+            {
+                _isFirstDragFrame = false;
             }
         }
 
-        _lastFramePosition = transform.position;
-        transform.position = targetPosition;
+        _lastFramePosition = targetPosition;
+
+        if (_rb != null && !_rb.isKinematic)
+        {
+            _rb.MovePosition(targetPosition);
+        }
+        else
+        {
+            transform.position = targetPosition;
+        }
     }
 
     private void BreakGlassBox()
@@ -145,12 +195,18 @@ public class Box : MonoBehaviour
         IsDragging = false;
         IsHandled = true;
 
+        if (boxCollider != null)
+        {
+            boxCollider.enabled = false;
+        }
+
         if (CameraShaker.Instance != null)
         {
             CameraShaker.Instance.ShakeOnWrong();
         }
 
         GameManager.Instance.OnWrongSort();
+        AudioManager.Instance?.PlaySFX(AudioManager.Instance.glassBreakSound);
 
         transform.DOKill();
         transform.DOShakeScale(0.2f, 0.5f, 20)
@@ -165,13 +221,34 @@ public class Box : MonoBehaviour
 
     public void EndDrag()
     {
+        if (IsHandled) return;
+
         IsDragging = false;
+
+        if (_rb != null)
+        {
+            _rb.velocity = Vector3.zero;
+        }
+
         transform.DOScale(1f, 0.15f);
     }
 
     public void PlayCorrectTween(Vector3 targetPos, System.Action onComplete)
     {
         IsHandled = true;
+        IsDragging = false;
+
+        if (boxCollider != null)
+        {
+            boxCollider.enabled = false;
+        }
+
+        if (_rb != null)
+        {
+            _rb.velocity = Vector3.zero;
+            _rb.isKinematic = true;
+        }
+
         transform.DOMove(targetPos, 0.25f).SetEase(Ease.InBack);
         transform.DOScale(0f, 0.25f).SetDelay(0.05f)
             .OnComplete(() => onComplete?.Invoke());
@@ -182,16 +259,16 @@ public class Box : MonoBehaviour
         IsHandled = true;
         IsDragging = false;
 
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.useGravity = false;
-            rb.Sleep();
-        }
-
         if (boxCollider != null)
         {
-            boxCollider.isTrigger = true;
+            boxCollider.enabled = false;
+        }
+
+        if (_rb != null)
+        {
+            _rb.useGravity = false;
+            _rb.Sleep();
+            _rb.isKinematic = true;
         }
 
         Vector3 targetUpPos = transform.position + Vector3.up * 10f;
@@ -214,14 +291,20 @@ public class Box : MonoBehaviour
 
     public void ResetPhysicsState()
     {
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb != null)
+        if (_rb == null) _rb = GetComponent<Rigidbody>();
+
+        if (_rb != null)
         {
-            rb.useGravity = true;
+            _rb.isKinematic = false;
+            _rb.useGravity = true;
+            _rb.velocity = Vector3.zero;
+            _rb.angularVelocity = Vector3.zero;
+            _rb.constraints = RigidbodyConstraints.FreezeRotation;
         }
 
         if (boxCollider != null)
         {
+            boxCollider.enabled = true;
             boxCollider.isTrigger = false;
         }
     }

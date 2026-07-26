@@ -10,9 +10,14 @@ public class FloatingText : MonoBehaviour
     [SerializeField] private float moveDistance = 1.5f;
     [SerializeField] private float duration = 0.8f;
 
-    public void Init(int amount, bool isBonus = false)
+    public void Init(int amount, bool isBonus = false, bool isTimeBonus = false)
     {
-        if (isBonus)
+        if (isTimeBonus)
+        {
+            textMesh.text = $"+{amount} sec";
+            textMesh.color = new Color(0.2f, 0.8f, 1f);
+        }
+        else if (isBonus)
         {
             textMesh.text = $"+{amount} BONUS!";
             textMesh.color = Color.yellow;
@@ -26,8 +31,9 @@ public class FloatingText : MonoBehaviour
         Sequence seq = DOTween.Sequence();
 
         seq.Join(transform.DOMoveY(transform.position.y + moveDistance, duration).SetEase(Ease.OutCubic));
-
         seq.Join(textMesh.DOFade(0f, duration).SetEase(Ease.InQuad));
+
+        seq.SetUpdate(true);
 
         seq.OnComplete(() => Destroy(gameObject));
     }

@@ -8,6 +8,8 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
+    public static bool shouldAutoStart = false;
+
     [Header("Refs")]
     public ConveyorSpawner Conveyor;
     public ScoreManager Score;
@@ -48,20 +50,38 @@ public class GameManager : MonoBehaviour
         _lives = maxLives;
         SaveManager.LoadBest();
         UI.SetBestScore(SaveManager.BestScore);
-        _fsm.Initialize(Menu);
+
         FindObjectOfType<ContainerShuffler>()?.ShuffleContainers();
+
+        if (shouldAutoStart)
+        {
+            shouldAutoStart = false;
+            _fsm.Initialize(Playing);
+
+            StartGameLogic();
+        }
+        else
+        {
+            _fsm.Initialize(Menu);
+        }
     }
 
     private void Update() => _fsm.Tick();
 
     public void StartGame()
     {
+        StartGameLogic();
+        _fsm.ChangeState(Playing);
+        AudioManager.Instance?.PlaySFX(AudioManager.Instance.buttonClickSound);
+    }
+
+    private void StartGameLogic()
+    {
         Score.ResetScore();
         Combo.ResetCombo();
         Timer.ResetTimer();
         if (Level != null) Level.ResetLevel();
         _lives = maxLives;
-        _fsm.ChangeState(Playing);
     }
 
     public void OnBoxMissed()
@@ -91,8 +111,13 @@ public class GameManager : MonoBehaviour
 
     public void RestartGame()
     {
+        Time.timeScale = 1f;
+
+        shouldAutoStart = true;
+
         Scene currentScene = SceneManager.GetActiveScene();
         SceneManager.LoadScene(currentScene.name);
+        AudioManager.Instance?.PlaySFX(AudioManager.Instance.buttonClickSound);
     }
 
     public int CalculateScoreWithCombo(int baseScore)
@@ -104,7 +129,7 @@ public class GameManager : MonoBehaviour
 
         if (currentCombo >= 3 && currentCombo % 3 == 0)
         {
-            
+
         }
 
         return finalScore;
@@ -113,5 +138,22 @@ public class GameManager : MonoBehaviour
     public void ResetCombo()
     {
         currentCombo = 0;
+    }
+
+    public void OnGameFinished()
+    {
+        if (Input != null) Input.enabled = false;
+
+        if (Conveyor != null) Conveyor.StopSpawning();
+
+        Time.timeScale = 0f;
+    }
+
+    public void OnGameStarted()
+    {
+        Time.timeScale = 1f;
+        if (Input != null) Input.enabled = true;
+
+        if (Conveyor != null) Conveyor.StartSpawning();
     }
 }

@@ -12,6 +12,7 @@ public class WinState : IGameState
     {
         _gm.SaveManager.TrySaveBest(_gm.Score.CurrentScore);
         _gm.UI.ShowWin(_gm.Score.CurrentScore, _gm.SaveManager.BestScore);
+        _gm.OnGameFinished();
     }
     public void Tick() { }
     public void Exit() => _gm.UI.HideWin();

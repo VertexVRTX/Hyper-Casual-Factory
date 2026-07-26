@@ -12,6 +12,7 @@ public class LoseState : IGameState
     {
         _gm.SaveManager.TrySaveBest(_gm.Score.CurrentScore);
         _gm.UI.ShowLose(_gm.Score.CurrentScore, _gm.SaveManager.BestScore);
+        _gm.OnGameFinished();
     }
     public void Tick() { }
     public void Exit() => _gm.UI.HideLose();

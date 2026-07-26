@@ -135,6 +135,7 @@ public class ConveyorSpawner : MonoBehaviour
         }
 
         _activeBoxes.Add(box);
+        AudioManager.Instance?.PlaySFX(AudioManager.Instance.boxDropOnConveyorSound);
     }
 
     private int GetComplexBoxesCount()
