@@ -1,14 +1,8 @@
-# Box Sort — Conveyor Puzzle Game
+# Box Sort - Conveyor Puzzle Game
 
 A fast-paced Unity arcade game where players sort colored boxes on a moving conveyor belt while managing combo multipliers, special box mechanics, and an adaptive difficulty system designed to keep every run engaging.
 
-<!--
-GIF #1 — HERO SHOT (top of README, right after the description)
-Record ~8-10 seconds of normal, fast gameplay: several boxes coming down the belt,
-the player dragging 2-3 of them into the correct containers back-to-back, combo
-counter ticking up. This is the "first impression" gif, so keep it snappy.
--->
-![gameplay hero gif placeholder](docs/gifs/hero-gameplay.gif)
+<img width="1280" height="720" alt="ezgif com-video-to-gif-converter (9)" src="https://github.com/user-attachments/assets/8e443b5b-0f83-40b9-bdf7-c4703147f93a" />
 
 ## Technical Highlights
 
@@ -27,14 +21,7 @@ A 30-second summary of what's actually going on under the hood, for anyone skimm
 
 Sort colored boxes into matching containers before they reach the end of the conveyor. Build combos, survive increasing difficulty, and deal with special box mechanics that require unique interactions.
 
-<!--
-GIF #2 — BUILDING VS. RUSH COMPARISON (right after "Game Concept")
-Two short side-by-side style clips (or one gif that cuts between them):
-  1) Early game — slow belt, only Normal boxes, plenty of reaction time.
-  2) Late game (high score) — fast belt, tight box spacing, Sealed/Frozen/Glass
-     boxes mixed in. This shows off the adaptive difficulty curve.
--->
-![difficulty ramp gif placeholder](docs/gifs/difficulty-ramp.gif)
+<img width="1280" height="720" alt="ezgif com-video-to-gif-converter (10)" src="https://github.com/user-attachments/assets/d7ab6504-ea32-4b6d-9011-463c2e779ab8" />
 
 ---
 
@@ -43,21 +30,20 @@ Two short side-by-side style clips (or one gif that cuts between them):
 - **Adaptive Difficulty:** Belt speed and spawn rate scale smoothly with the player's score.
 - **Combo & Multiplier System:** Consecutive correct sorts build a hit streak; every few hits the score multiplier increases (up to a configurable cap), rewarding sustained accuracy over lucky single sorts.
 - **Special "Trick" Boxes:** Sealed (taped), Frozen (iced), and Glass boxes each demand a different micro-interaction before — or instead of — a normal drag-and-drop.
+<img width="600" height="337" alt="ezgif com-video-to-gif-converter (13)" src="https://github.com/user-attachments/assets/a90a4815-5d9c-43d4-b491-4078e359cc30" />
+
+ 
 - **Bonus Boxes:** Rare boxes grant either extra time or bonus score (scaled by the current combo multiplier) instead of needing to match a color.
+<img width="600" height="337" alt="ezgif com-video-to-gif-converter (14)" src="https://github.com/user-attachments/assets/a3a4ff51-767b-4872-9d13-721f05013b0f" />
+
 - **Freeze Ability:** A player-triggered ability that briefly halts the belt on a cooldown, useful for surviving a crowded moment.
+<img width="600" height="337" alt="ezgif com-video-to-gif-converter (15)" src="https://github.com/user-attachments/assets/c9f54ced-2019-473d-906b-2695eadcaf6e" />
+
 - **Randomized Container Layout:** Container positions are shuffled at the start of each run so the color-to-position mapping can't be memorized.
 - **Full Run Loop:** Menu → Playing → Win/Lose, driven by a small finite-state machine, with best-score persistence between sessions.
 - **Juicy Feedback:** Squash-and-stretch tweens, camera shake, screen flash on mistakes, floating score text, and audio feedback (with pitch variation) on every interaction.
+<img width="227" height="125" alt="ezgif com-crop" src="https://github.com/user-attachments/assets/ac185bdc-e551-4fbd-bef7-2e1b4274e4de" />
 
-<!--
-GIF #3 — TRICK BOXES SHOWCASE (right after "Key Features")
-Best as three quick back-to-back clips (or one combined gif):
-  - Sealed box: click to peel the tape off, then drag it normally.
-  - Frozen box: hold it in place until the ice cracks/melts, then drag.
-  - Glass box: drag it slowly into a container vs. dragging too fast and
-    watching it shatter (shows both the success and failure case).
--->
-![trick boxes gif placeholder](docs/gifs/trick-boxes.gif)
 
 ---
 
@@ -87,15 +73,6 @@ The belt can spawn **6 box types**, split between color boxes and bonus boxes, a
 - **Glass Box:** Draggable immediately, but if it's moved faster than a set speed threshold it shatters mid-drag, counting as a miss.
 
 Which mechanic (if any) a spawned box gets is decided by `LevelManager.GetRandomMechanicForLevel()` — the odds of Sealed/Frozen/Glass appearing increase as the player levels up, so early runs are all Normal boxes and later runs mix in all three.
-
-<!--
-GIF #4 — CONTAINER FEEDBACK (near "Interactive Objects" or "Key Features")
-Capture a correct sort (container pulses/scales up, floating "+score" text,
-particle/sound) immediately followed by a wrong sort (container shakes,
-red particle burst, camera shake, screen flash). Having both in one gif
-sells the "juice" of the feedback system well.
--->
-![container feedback gif placeholder](docs/gifs/container-feedback.gif)
 
 ---
 
@@ -190,13 +167,7 @@ Spawning isn't just "instantiate a random box on a timer" — `ConveyorSpawner` 
 - **Compensating Spawn Delay:** Whenever a complex box appears, the next spawn is delayed by a configurable multiplier. This gives the player extra time to interact with mechanic-heavy boxes before another one enters the belt.
 - **Continuous Difficulty Feed:** Spawn interval and conveyor speed are continuously updated by the adaptive difficulty system, allowing the spawn logic to react dynamically to the current game state instead of fixed difficulty tiers.
 
-<!--
-GIF #5 — SMART SPAWN / BRAKING IN ACTION (right after "Smart Spawn Algorithm")
-A gif showing several boxes queued close together on the belt, visibly slowing
-down as they approach the box ahead of them instead of overlapping, is the
-clearest way to show this system working rather than just describing it.
--->
-![smart spawn gif placeholder](docs/gifs/smart-spawn-braking.gif)
+<img width="800" height="450" alt="ezgif com-video-to-gif-converter (16)" src="https://github.com/user-attachments/assets/7b0a1d1a-7d8d-4ca6-afd6-c7304465a727" />
 
 ---
 
@@ -211,13 +182,6 @@ Performance was a major focus during development. The game avoids unnecessary al
 - **No Per-Frame `Find()` Calls:** Manager references (`GameManager.Instance`, `AudioManager.Instance`, `CameraShaker.Instance`, etc.) are cached singletons assigned once in `Awake()`, so gameplay code never calls `GameObject.Find` or `FindObjectOfType` inside `Update()`.
 - **Non-Allocating Overlap Queries:** Container detection under a dropped box uses `Physics.OverlapSphereNonAlloc` into a pre-allocated buffer instead of the allocating `OverlapSphere`, avoiding GC pressure on every single drag release.
 - **Event-Driven UI Instead of Polling:** Score, combo, and timer displays subscribe to C# events (`OnScoreChanged`, `OnComboChanged`, `OnTimeChanged`) fired only when a value actually changes, rather than reading and formatting state every frame in `Update()`.
-
-<!--
-GIF #6 — OPTIMIZATION SHOWCASE (optional, right after "Performance & Optimization")
-If you have the Unity Profiler open, a short gif showing a busy belt (10+ boxes)
-running at a stable frame time is a strong, concrete way to back up this section
-visually.
--->
 
 ---
 
@@ -247,14 +211,14 @@ visually.
 ## How to Run
 
 ### Run the Project in Unity
-
 1. Open the project in Unity (2022.3+ recommended).
 2. Open the main gameplay scene.
 3. Press **Play**.
 
 ### Play in Browser (Quick Demo)
+You can play the fully functional WebGL demo directly in your browser without downloading anything:
+**[Box Sort - Conveyor Puzzle Demo on itch.io](https://vertexvrtx.itch.io/box-sort-conveyor-puzzle-game)**
 
-*()*
 
 ---
 
