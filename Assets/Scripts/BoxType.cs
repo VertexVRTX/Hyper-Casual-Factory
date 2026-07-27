@@ -146,7 +146,8 @@ public class Box : MonoBehaviour
         if (_rb != null)
         {
             _rb.velocity = Vector3.zero;
-            _rb.constraints = RigidbodyConstraints.FreezeRotation;
+            _rb.angularVelocity = Vector3.zero;
+            _rb.isKinematic = true;
         }
 
         transform.DOKill();
@@ -180,14 +181,7 @@ public class Box : MonoBehaviour
 
         _lastFramePosition = targetPosition;
 
-        if (_rb != null && !_rb.isKinematic)
-        {
-            _rb.MovePosition(targetPosition);
-        }
-        else
-        {
-            transform.position = targetPosition;
-        }
+        transform.position = targetPosition;
     }
 
     private void BreakGlassBox()
@@ -227,6 +221,7 @@ public class Box : MonoBehaviour
 
         if (_rb != null)
         {
+            _rb.isKinematic = false;
             _rb.velocity = Vector3.zero;
         }
 

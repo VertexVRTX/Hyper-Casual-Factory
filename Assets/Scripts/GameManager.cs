@@ -43,6 +43,8 @@ public class GameManager : MonoBehaviour
         Playing = new PlayingState(this);
         Win = new WinState(this);
         Lose = new LoseState(this);
+
+        Application.targetFrameRate = 120;
     }
 
     private void Start()
