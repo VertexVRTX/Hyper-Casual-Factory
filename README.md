@@ -1,4 +1,4 @@
-# Box Sort - Conveyor Puzzle Game
+# Box Sort - Conveyor Puzzle Game (Unity)
 
 A fast-paced Unity arcade game where players sort colored boxes on a moving conveyor belt while managing combo multipliers, special box mechanics, and an adaptive difficulty system designed to keep every run engaging.
 
