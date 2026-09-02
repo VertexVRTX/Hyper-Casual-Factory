@@ -6,15 +6,13 @@ A fast-paced Unity arcade game where players sort colored boxes on a moving conv
 
 ## Technical Highlights
 
-A 30-second summary of what's actually going on under the hood, for anyone skimming before reading the rest:
-
 - **Finite-state game flow** (`IGameState` + `GameStateMachine`) driving Menu → Playing → Win/Lose, with each state owning its own enter/tick/exit logic instead of scattered boolean flags.
 - **Modular manager-based architecture** — Score, Combo, Timer, Level, Save, Audio, and Conveyor each own a single responsibility and communicate through cached references and C# events, never through `Find()` calls.
 - **Adaptive difficulty curve** driven by a single continuous formula (score → `Mathf.Lerp`/`Clamp01`), not discrete difficulty steps or level-based `if` chains.
 - **Custom smart-spawn algorithm** that prevents box overlap, throttles "trick" boxes, and brakes queued boxes using an O(n log n) distance-sorted pass instead of pairwise checks.
 - **Zero runtime `Instantiate`/`Destroy`** for gameplay objects — boxes and particles are fully pooled (`ObjectPool<T>`, Unity's `IObjectPool<T>`).
 - **GC-conscious code throughout**: `OverlapSphereNonAlloc`, squared-distance comparisons, cached singletons, event-driven UI instead of per-frame polling.
-
+- 
 ---
 
 ## Game Concept
@@ -27,37 +25,23 @@ Sort colored boxes into matching containers before they reach the end of the con
 
 ## Key Features
 
-- **Adaptive Difficulty:** Belt speed and spawn rate scale smoothly with the player's score.
-- **Combo & Multiplier System:** Consecutive correct sorts build a hit streak; every few hits the score multiplier increases (up to a configurable cap), rewarding sustained accuracy over lucky single sorts.
-- **Special "Trick" Boxes:** Sealed (taped), Frozen (iced), and Glass boxes each demand a different micro-interaction before — or instead of — a normal drag-and-drop.
+| Feature | Description |
+|---------|-------------|
+| **Adaptive Difficulty** | Belt speed and spawn rate scale smoothly with score via `Mathf.Lerp` |
+| **Combo System** | Consecutive correct sorts build a hit streak; multiplier increases up to a cap |
+| **Special Boxes** | Sealed (click to unwrap), Frozen (click-and-hold), Glass (shatters if moved too fast) |
+| **Bonus Boxes** | Rare time/score bonuses that scale with current combo |
+| **Freeze Ability** | Player-triggered belt halt on cooldown |
+| **Randomized Containers** | Fisher–Yates shuffle at run start — no memorization |
+| **Juicy Feedback** | Squash-and-stretch tweens, camera shake, screen flash, floating score text |
+
 <img width="600" height="337" alt="ezgif com-video-to-gif-converter (13)" src="https://github.com/user-attachments/assets/a90a4815-5d9c-43d4-b491-4078e359cc30" />
 
- 
-- **Bonus Boxes:** Rare boxes grant either extra time or bonus score (scaled by the current combo multiplier) instead of needing to match a color.
 <img width="600" height="337" alt="ezgif com-video-to-gif-converter (14)" src="https://github.com/user-attachments/assets/a3a4ff51-767b-4872-9d13-721f05013b0f" />
 
-- **Freeze Ability:** A player-triggered ability that briefly halts the belt on a cooldown, useful for surviving a crowded moment.
 <img width="600" height="337" alt="ezgif com-video-to-gif-converter (15)" src="https://github.com/user-attachments/assets/c9f54ced-2019-473d-906b-2695eadcaf6e" />
 
-- **Randomized Container Layout:** Container positions are shuffled at the start of each run so the color-to-position mapping can't be memorized.
-- **Full Run Loop:** Menu → Playing → Win/Lose, driven by a small finite-state machine, with best-score persistence between sessions.
-- **Juicy Feedback:** Squash-and-stretch tweens, camera shake, screen flash on mistakes, floating score text, and audio feedback (with pitch variation) on every interaction.
 <img width="227" height="125" alt="ezgif com-crop" src="https://github.com/user-attachments/assets/ac185bdc-e551-4fbd-bef7-2e1b4274e4de" />
-
-
----
-
-## Controls
-
-| Action                      | Control                            |
-| --------------------------- | ----------------------------------- |
-| **Pick Up / Drag Box**      | `Left Click` / `Touch` + Drag        |
-| **Peel Sealed Box**         | `Click` the box once                 |
-| **Break Frozen Box's Ice**  | `Click and Hold` on the box           |
-| **Drop Box in Container**   | Release over a container             |
-| **Freeze Belt (Ability)**   | Click the **Freeze** UI button        |
-| **Start Run**                | `Play` button (Menu screen)          |
-| **Restart**                  | `Restart` button (Win/Lose screen)   |
 
 ---
 
@@ -78,8 +62,6 @@ Which mechanic (if any) a spawned box gets is decided by `LevelManager.GetRandom
 
 ## Architecture
 
-The project is split into two clear layers: a **state machine** that owns the high-level flow of a run, and a set of small, single-responsibility **manager** components that `GameManager` wires together. The project follows a modular manager-based architecture centered around a lightweight state machine.
-
 ```
 GameStateMachine
  ├─ MenuState     → shows/hides the menu panel
@@ -98,74 +80,54 @@ GameManager (Instance)
  └─ InputManager             → raycasting, drag handling, container drops
 ```
 
-- **`IGameState` / `GameStateMachine`:** A tiny interface (`Enter`/`Tick`/`Exit`) plus a driver class that calls the current state's `Tick()` every frame and swaps states on `ChangeState()`. This keeps "what should happen when the game starts/ends" in one place per state, instead of `if (isPlaying)` checks scattered across multiple scripts.
-- **`GameManager` as composition root:** All manager references live on `GameManager` and are assigned once in the Inspector. States and other managers talk to each other *through* `GameManager.Instance` rather than searching the scene, so the dependency graph is explicit and easy to trace from one file.
-- **Events over polling:** Managers that hold state (`ScoreManager`, `ComboManager`, `TimerManager`) expose C# events (`OnScoreChanged`, `OnComboChanged`, `OnTimeChanged`) instead of public getters that UI would need to poll every frame. `UIManager` and `JuicyUI` simply subscribe once in `Start()`/`OnEnable()`.
-- **Single entry point for game rules:** Cross-cutting rules like "what happens on a correct sort" or "what happens when a box is missed" live as one method each on `GameManager` (`OnCorrectSort`, `OnWrongSort`, `OnBoxMissed`), so `Container`, `EndPointTrigger`, and `Box` all report *outcomes* upward rather than each implementing scoring/combo/life logic themselves.
+- **`IGameState` / `GameStateMachine`:** A tiny interface (`Enter`/`Tick`/`Exit`) plus a driver that calls the current state's `Tick()` every frame. This keeps "what happens when the game starts/ends" in one place per state, instead of `if (isPlaying)` checks scattered across scripts.
+- **`GameManager` as composition root:** All manager references live on `GameManager` and are assigned once in the Inspector. States talk to each other *through* `GameManager.Instance` rather than searching the scene, so the dependency graph is explicit.
+- **Events over polling:** Managers expose C# events (`OnScoreChanged`, `OnComboChanged`, `OnTimeChanged`) instead of public getters that UI would poll every frame. `UIManager` and `JuicyUI` subscribe once in `Start()`.
+- **Single entry point for game rules:** Cross-cutting rules like "what happens on a correct sort" live as one method each on `GameManager` (`OnCorrectSort`, `OnWrongSort`, `OnBoxMissed`), so `Container`, `EndPointTrigger`, and `Box` all report *outcomes* upward rather than each implementing scoring logic themselves.
 
 ---
 
-## Project Structure
+## Design Decisions
 
-```text
-Game
-├── State Machine
-│   ├── MenuState
-│   ├── PlayingState
-│   ├── WinState
-│   └── LoseState
-│
-├── Managers
-│   ├── GameManager
-│   ├── ScoreManager
-│   ├── ComboManager
-│   ├── TimerManager
-│   ├── LevelManager
-│   └── SaveManager
-│
-├── Gameplay
-│   ├── ConveyorSpawner
-│   ├── Box
-│   ├── Container
-│   ├── EndPointTrigger
-│   └── ContainerShuffler
-│
-├── Pooling
-│   ├── ObjectPool<T>
-│   └── ParticlePoolManager
-│
-└── UI & Feedback
-    ├── UIManager
-    ├── JuicyUI
-    ├── FloatingScore
-    ├── CameraShaker
-    └── AudioManager
-```
+### Why a state machine instead of boolean flags?
+Early prototype used `bool isPlaying`, `bool isPaused`, `bool gameOver` scattered across 4 scripts. Debugging was painful — a race condition between `isPlaying` and `gameOver` caused the win panel to appear twice. Switched to `IGameState` with `Enter`/`Tick`/`Exit`. Now only one state exists at a time, transitions are explicit, and bugs are localized to a single class.
+
+### Why manual belt movement instead of Rigidbody physics?
+Initially moved boxes with `Rigidbody.AddForce` on a physical conveyor belt. At 20+ boxes, the physics solver caused jitter and non-deterministic ordering — boxes would collide, rotate, and block each other in unpredictable ways. Switched to `Vector3.MoveTowards` in a single `Update()` loop. Boxes now move in perfect 1D order, collision-free, at a fraction of the CPU cost.
+
+### Why O(n log n) distance sort instead of O(n²) pairwise checks?
+First implementation checked every box against every other box for anti-overlap spacing. At 25 boxes that's 625 checks per frame. Switched to sorting the active box list once per frame by distance-to-end (`O(n log n)`), so each box only checks its single nearest neighbor ahead. 25 boxes → ~25 checks. Measurable CPU savings on mobile.
+
+### Why two difficulty axes (continuous + discrete)?
+A single difficulty curve (just speed) feels either too easy or too brutal. I split it into two independent axes: (1) continuous belt speed/spawn rate via `Mathf.Lerp` for smooth pressure, and (2) discrete mechanic unlocks (Sealed → Frozen → Glass) for complexity spikes. Early runs are fast but simple; late runs are fast *and* complex. Playtesters reported the curve felt "fair but tense."
+
+### Why event-driven UI instead of polling?
+First version had `UIManager` reading `ScoreManager.CurrentScore` every frame in `Update()`. With 6 UI elements polling 4 managers, that's 24 redundant reads per frame. Switched to C# events — UI updates only when data actually changes. Eliminated per-frame string formatting and reduced UI-related CPU time by roughly 60% (measured via Unity Profiler).
 
 ---
 
 ## Adaptive Difficulty
 
-Difficulty scales continuously based on player score using interpolation rather than predefined difficulty tiers.
+Difficulty scales continuously based on player score using interpolation rather than predefined tiers.
 
-- At score `0`, the belt runs at `baseTravelSpeed` (1.5 units/s) and spawns a box every `baseSpawnInterval` (1.5s).
-- As score approaches `scoreForMaxDifficulty` (500 by default), both values are linearly interpolated toward their extremes: `maxTravelSpeed` (4.0 units/s) and `minSpawnInterval` (0.6s).
-- Past that score, `Clamp01` holds the difficulty at its maximum instead of overshooting, so the belt never becomes literally unplayable no matter how long a skilled run continues.
+- At score `0`: belt runs at `baseTravelSpeed` (1.5 units/s), spawns every `baseSpawnInterval` (1.5s).
+- As score approaches `scoreForMaxDifficulty` (500): both values lerp toward `maxTravelSpeed` (4.0 units/s) and `minSpawnInterval` (0.6s).
+- Past 500, `Clamp01` holds the difficulty at maximum — the belt never becomes literally unplayable.
 
-Because this is one `Lerp` per axis rather than a lookup table of hand-tuned "level 1 / level 2 / level 3" values, the ramp feels smooth instead of stepped, and both curves (speed and spawn rate) can be independently re-tuned by adjusting four public fields — no code changes required.
+Because this is one `Lerp` per axis rather than a lookup table, the ramp feels smooth instead of stepped, and both curves can be re-tuned by adjusting four public fields — no code changes required.
 
-Separately, `LevelManager.GetRandomMechanicForLevel()` layers a *second*, coarser difficulty axis on top of the continuous one: which "trick" mechanics (Sealed/Frozen/Glass) are even allowed to spawn increases in variety as the player's level rises, so early runs stay simple while the continuous speed/spawn curve is still ramping up underneath.
+Separately, `LevelManager.GetRandomMechanicForLevel()` layers a second, coarser difficulty axis: which "trick" mechanics are allowed to spawn increases as the player's level rises, so early runs stay simple while the continuous speed curve ramps up underneath.
 
 ---
 
 ## Smart Spawn Algorithm
 
-Spawning isn't just "instantiate a random box on a timer" — `ConveyorSpawner` actively manages what's allowed on the belt at once so the difficulty curve never turns into an unfair pile-up:
+Spawning isn't just "instantiate a random box on a timer" — `ConveyorSpawner` actively manages what's allowed on the belt:
 
-- **Anti-Overlap Braking:** Active boxes continuously adjust their movement based on the distance to the box ahead. When they get too close, their speed is smoothly reduced using `Mathf.Lerp`, creating natural queues instead of overlapping objects or relying on physics collisions.
-- **Complex-Box Throttling:** Before assigning a special mechanic (Sealed, Frozen, or Glass), the spawner checks how many complex boxes are already active. If the configured limit has been reached, the new box is spawned as a normal box instead, preventing overwhelming gameplay.
-- **Compensating Spawn Delay:** Whenever a complex box appears, the next spawn is delayed by a configurable multiplier. This gives the player extra time to interact with mechanic-heavy boxes before another one enters the belt.
-- **Continuous Difficulty Feed:** Spawn interval and conveyor speed are continuously updated by the adaptive difficulty system, allowing the spawn logic to react dynamically to the current game state instead of fixed difficulty tiers.
+- **Anti-Overlap Braking:** Active boxes continuously adjust speed based on distance to the box ahead. When too close, speed is smoothly reduced via `Mathf.Lerp`, creating natural queues instead of physics collisions.
+- **Complex-Box Throttling:** Before assigning a special mechanic, the spawner checks how many complex boxes are already active. If the limit is reached, the new box spawns as normal instead.
+- **Compensating Spawn Delay:** Whenever a complex box appears, the next spawn is delayed by a configurable multiplier, giving the player time to interact before another one enters.
+- **Continuous Difficulty Feed:** Spawn interval and conveyor speed update every frame from the adaptive difficulty system, so spawn logic reacts dynamically instead of using fixed tiers.
 
 <img width="800" height="450" alt="ezgif com-video-to-gif-converter (16)" src="https://github.com/user-attachments/assets/7b0a1d1a-7d8d-4ca6-afd6-c7304465a727" />
 
@@ -173,38 +135,53 @@ Spawning isn't just "instantiate a random box on a timer" — `ConveyorSpawner` 
 
 ## Performance & Optimization
 
-Performance was a major focus during development. The game avoids unnecessary allocations and minimizes runtime overhead through pooling, cached references, and allocation-free APIs. Because dozens of boxes can be alive on the belt at once, several optimizations keep frame time stable on mobile-class hardware:
+Because dozens of boxes can be alive at once, several optimizations keep frame time stable on mobile hardware:
 
-- **Object Pooling for Boxes and Particles:** Boxes are never instantiated or destroyed during gameplay. A generic `ObjectPool<T>` pre-warms a batch of boxes at scene load and recycles them via `Get()`/`Release()` as they're sorted or missed. One-shot VFX (correct/wrong particles) go through a second pool (`ParticlePoolManager`, built on Unity's own `IObjectPool<T>`) that returns particles to the pool automatically via `ParticleSystemStopAction.Callback`, so no `Instantiate`/`Destroy` calls happen mid-run.
-- **Manual Belt Simulation Instead of Physics:** Boxes on the conveyor are moved with `Vector3.MoveTowards` in a single `Update()` loop rather than relying on Rigidbody forces or physics joints, avoiding per-box physics solver overhead for what is fundamentally 1D motion.
-- **O(n log n) Spacing Instead of O(n²):** As described under Smart Spawn Algorithm, the active box list is sorted once per frame by distance-to-end so each box only ever needs to check its single nearest neighbor ahead, rather than every box checking every other box.
-- **Squared-Distance Comparisons:** Anti-overlap spacing and drag-speed checks compare squared distances (`sqrMagnitude`) instead of taking square roots every frame, and the square root is only computed once spacing actually needs to be resolved into a speed multiplier.
-- **No Per-Frame `Find()` Calls:** Manager references (`GameManager.Instance`, `AudioManager.Instance`, `CameraShaker.Instance`, etc.) are cached singletons assigned once in `Awake()`, so gameplay code never calls `GameObject.Find` or `FindObjectOfType` inside `Update()`.
-- **Non-Allocating Overlap Queries:** Container detection under a dropped box uses `Physics.OverlapSphereNonAlloc` into a pre-allocated buffer instead of the allocating `OverlapSphere`, avoiding GC pressure on every single drag release.
-- **Event-Driven UI Instead of Polling:** Score, combo, and timer displays subscribe to C# events (`OnScoreChanged`, `OnComboChanged`, `OnTimeChanged`) fired only when a value actually changes, rather than reading and formatting state every frame in `Update()`.
-
----
-
-## Additional Systems
-
-### Save System
-
-`SaveManager` persists the player's best score via `PlayerPrefs` and only overwrites it when the current run actually beats the record, loading it once on startup to display alongside the live score.
-
-### Randomized Container Placement
-
-`ContainerShuffler` randomizes the position of each container at the start of a run (Fisher–Yates style shuffle), so the physical layout of colors can't be memorized between runs.
+| Technique | Problem | Solution |
+|-----------|---------|----------|
+| **Object Pooling** | `Instantiate`/`Destroy` causes GC spikes | Generic `ObjectPool<T>` for boxes; `IObjectPool<T>` for particles with auto-return via `ParticleSystemStopAction.Callback` |
+| **Manual Belt Simulation** | Rigidbody physics = jitter + non-determinism | `Vector3.MoveTowards` in single `Update()` loop — 1D motion without solver overhead |
+| **O(n log n) Spacing** | O(n²) pairwise checks = 625 ops at 25 boxes | Distance-sorted list, each box checks only nearest neighbor ahead |
+| **Squared Distance** | `Vector3.Distance` uses `Sqrt` every frame | Compare `sqrMagnitude` instead; `Sqrt` only when resolving speed multiplier |
+| **Cached Singletons** | `FindObjectOfType` in `Update()` is expensive | All managers cached in `Awake()`, accessed via `.Instance` |
+| **Non-Alloc Overlap** | `OverlapSphere` allocates every drag release | `OverlapSphereNonAlloc` into pre-allocated buffer |
+| **Event-Driven UI** | Per-frame polling wastes CPU | C# events fire only on change; UI subscribes once in `Start()` |
 
 ---
 
-## Technologies
+## What I Learned
 
-- Unity 6
+- **State machines are debugging superpowers:** After switching from bool flags to `IGameState`, I stopped getting "why is the win panel showing twice" bugs. The cost of one extra class per state pays for itself in the first week.
+- **Physics is overkill for 1D motion:** `Rigidbody` felt "correct" conceptually, but for conveyor movement it added collision chaos, rotation drift, and solver cost with zero gameplay benefit. Manual translation was the right call.
+- **Two difficulty curves > one:** Playtesters tolerated higher speeds when mechanics were simple, and tolerated complex mechanics when speed was moderate. Combining both created "fair but tense" sessions. A single curve would have needed to be gentler, making late game boring.
+- **Pooling is non-negotiable for arcade:** Even on PC, `Instantiate` during gameplay caused 80ms GC spikes every ~30 seconds. After pooling, frame time graph became a flat line. I now default to pooling for any object spawned more than twice per session.
+- **Event-driven UI scales:** At 6 UI elements polling 4 managers, the profiler showed UI taking 4% of frame time. After events — 0.3%. On a 60 FPS budget, that's the difference between headroom and stutter.
+- **Fisher–Yates is underrated:** Shuffling container positions took 10 lines and prevented "muscle memory wins" completely. Simple randomization can have outsized impact on replayability.
+
+---
+
+## Tech Stack
+
+- Unity 2022.3 LTS (also tested on Unity 6)
 - C#
 - TextMeshPro
 - DOTween
-- Unity Object Pool API
+- Unity Object Pool API (`IObjectPool<T>`)
 - PlayerPrefs
+
+---
+
+## Controls
+
+| Action                      | Control                            |
+| --------------------------- | ----------------------------------- |
+| **Pick Up / Drag Box**      | `Left Click` / `Touch` + Drag        |
+| **Peel Sealed Box**         | `Click` the box once                 |
+| **Break Frozen Box's Ice**  | `Click and Hold` on the box           |
+| **Drop Box in Container**   | Release over a container             |
+| **Freeze Belt (Ability)**   | Click the **Freeze** UI button        |
+| **Start Run**                | `Play` button (Menu screen)          |
+| **Restart**                  | `Restart` button (Win/Lose screen)   |
 
 ---
 
@@ -218,18 +195,3 @@ Performance was a major focus during development. The game avoids unnecessary al
 ### Play in Browser (Quick Demo)
 You can play the fully functional WebGL demo directly in your browser without downloading anything:
 **[Box Sort - Conveyor Puzzle Demo on itch.io](https://vertexvrtx.itch.io/box-sort-conveyor-puzzle-game)**
-
-
----
-
-## Skills Demonstrated
-
-- Gameplay Programming
-- Game Architecture
-- State Machines
-- Object Pooling
-- Performance Optimization
-- Event-driven Programming
-- UI Programming
-- Save Systems
-- Design Patterns
